@@ -1,101 +1,103 @@
+// Simulated db.json data (fallback if file loading fails)
+let db = {
+    posts: [
+        { id: 1, title: "Sample Post", content: "This is a test post.", image: "https://via.placeholder.com/150", author: { name: "John Doe" } }
+    ]
+};
+
+// Load db.json from file (if served via static server)
+async function loadDb() {
+    try {
+        const response = await fetch('./db.json');
+        if (response.ok) {
+            db = await response.json();
+        }
+    } catch (error) {
+        console.warn('Using hardcoded db.json:', error);
+    }
+}
 
 function renderOnePost(post) {
     const listItem = document.createElement('li');
-    const deleteButton = document.createElement('button');
-    deleteButton.textContent = 'Delete';
-    deleteButton.className = 'btn btn-secondary p-2 m-2';
-    listItem.className = "card mb-3 p-2 m-2";
+    listItem.className = 'card mb-3 p-2 m-2';
     listItem.style.cursor = 'pointer';
-    const ul= document.querySelector('ul');
-    const postlog= document.getElementById('Postlogs');
-    postlog.className = "container";
-    const p = document.createElement('p');
-    p.className = "text-center";
-    p.style.cursor = 'pointer';
-    p.addEventListener('click', function(e) {
-        const ul = document.querySelector('ul');
-        ul.innerHTML = ''; // Clear the list before displaying the clicked post
-        listItem.innerHTML = ''; // Clear the list item content
-        if (e.target.tagName === 'P') {
-            ul.appendChild(listItem);
-           listItem.innerHTML = `
+
+    // Create post content
+    listItem.innerHTML = `
         <h1>${post.title}</h1>
         <p>${post.content}</p>
         <p>Author: ${post.author.name}</p>
-        <img src="${post.image}" alt="${post.title}" >
-        <button id="deleteButton"class="btn btn-danger p-2 m-2" onclick="deletePost(${post.id})">Delete</button>
+        <img src="${post.image}" alt="${post.title}" style="max-width: 100%;">
+        <button class="btn btn-danger p-2 m-2">Delete</button>
     `;
-        }else {
-            p.innerHTML = `${post.title}`;
+
+    // Add delete button event listener
+    const deleteButton = listItem.querySelector('button');
+    deleteButton.addEventListener('click', () => {
+        if (confirm('Are you sure you want to delete this post?')) {
+            deletePost(post.id, listItem);
+        }
+    });
+
+    // Toggle post details on click (optional)
+    listItem.addEventListener('click', (e) => {
+        if (e.target.tagName !== 'BUTTON') {
+            listItem.classList.toggle('expanded');
+            // Add CSS for .expanded to show/hide details if desired
         }
         e.stopPropagation();
-        // const deleteButton= getElementById('deleteButton');
-        // console.log(deleteButton);
-        // // deleteButton.addEventListener('click', function() {
-        // //     // listItem.remove();
-        // //     // deletePost(post.id);
-        // //     alert('Are you sure you want to delete this post?');
-        // //     });
     });
-    p.textContent = `${post.title}`;
-    postlog.appendChild(p);
 
-
-    // document.querySelector('ul').appendChild(listItem);
-
-
+    // Append to <ul>
+    document.querySelector('ul').appendChild(listItem);
 }
 
-function deletePost(id) {
-    fetch(`http://localhost:3000/posts/${id}`, {
-        method: 'DELETE',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-    })
-    .then(response => response.json())
-    .catch(error => alert('Error deleting post: ' + error))
+async function deletePost(id, listItem) {
+    try {
+        // Simulate DELETE by filtering out the post
+        db.posts = db.posts.filter(post => post.id !== id);
+        listItem.remove(); // Update UI
+    } catch (error) {
+        alert('Error deleting post: ' + error);
+    }
 }
-function getPosts(){
-    fetch('http://localhost:3000/posts')
-    .then(response => response.json())
-    .then(posts => posts.forEach(element => renderOnePost(element)))
-    .catch(error => alert('Error fetching posts: ' + error))
 
+async function getPosts() {
+    try {
+        // Load posts from in-memory db
+        document.querySelector('ul').innerHTML = ''; // Clear existing posts
+        db.posts.forEach(post => renderOnePost(post));
+    } catch (error) {
+        alert('Error fetching posts: ' + error);
+    }
 }
-getPosts();
-document.querySelector('#post-form').addEventListener('submit', function(event) {
-    event.preventDefault();
-    addPost();
 
-
-});
-
-function addPost() {
-    fetch('http://localhost:3000/posts', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-        body: JSON.stringify({
+async function addPost() {
+    try {
+        const postData = {
+            id: db.posts.length ? Math.max(...db.posts.map(p => p.id)) + 1 : 1, // Generate new ID
             title: document.querySelector('#title').value,
             content: document.querySelector('#content').value,
             image: document.querySelector('#image').value,
-            author: {
-            name: document.querySelector('#author').value
-            }
-        })
-    })
-    .then(response => response.json())
-        .then(post => {
-            renderOnePost(post);
-            document.querySelector('#post-form').reset();
-        });
+            author: { name: document.querySelector('#author').value }
+        };
 
-                }
-document.getElementById("add-post-btn").addEventListener("click", function(event) {
+        // Simulate POST by adding to in-memory db
+        db.posts.push(postData);
+        renderOnePost(postData);
+        document.querySelector('#post-form').reset();
+    } catch (error) {
+        alert('Error adding post: ' + error);
+    }
+}
+
+// Event Listeners
+document.querySelector('#post-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    addPost();
+});
+
+document.getElementById('add-post-btn').addEventListener('click', (event) => {
     event.preventDefault();
     const postForm = document.querySelector('#post-form');
     postForm.style.display = postForm.style.display === 'none' ? 'block' : 'none';
@@ -103,3 +105,9 @@ document.getElementById("add-post-btn").addEventListener("click", function(event
         postForm.scrollIntoView({ behavior: 'smooth' });
     }
 });
+
+// Initialize
+(async () => {
+    await loadDb(); // Try to load db.json
+    await getPosts(); // Render initial posts
+})();
