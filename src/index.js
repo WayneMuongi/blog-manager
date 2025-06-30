@@ -1,7 +1,6 @@
-// Simulated db.json data (fallback if file loading fails)
 let db = {
     posts: [
-        { id: 1, title: "Sample Post", content: "This is a test post.", image: "https://via.placeholder.com/150", author: { name: "John Doe" } }
+        { id: 1, title: "Sample Post", content: "This is a test post.", image: "https://via.placeholder.com/150", author: "John Doe" }
     ]
 };
 
@@ -22,17 +21,24 @@ function renderOnePost(post) {
     listItem.className = 'card mb-3 p-2 m-2';
     listItem.style.cursor = 'pointer';
 
-    // Create post content
+    // Use post.author directly (string, not object)
     listItem.innerHTML = `
         <h1>${post.title}</h1>
         <p>${post.content}</p>
-        <p>Author: ${post.author.name}</p>
+        <p>Author: ${post.author}</p>
         <img src="${post.image}" alt="${post.title}" style="max-width: 100%;">
-        <button class="btn btn-danger p-2 m-2">Delete</button>
+        <button class="btn btn-primary p-2 m-2 edit-btn">Edit</button>
+        <button class="btn btn-danger p-2 m-2 delete-btn">Delete</button>
     `;
 
-    // Add delete button event listener
-    const deleteButton = listItem.querySelector('button');
+    // Edit button event listener
+    const editButton = listItem.querySelector('.edit-btn');
+    editButton.addEventListener('click', () => {
+        populateEditForm(post, listItem);
+    });
+
+    // Delete button event listener
+    const deleteButton = listItem.querySelector('.delete-btn');
     deleteButton.addEventListener('click', () => {
         if (confirm('Are you sure you want to delete this post?')) {
             deletePost(post.id, listItem);
@@ -43,7 +49,6 @@ function renderOnePost(post) {
     listItem.addEventListener('click', (e) => {
         if (e.target.tagName !== 'BUTTON') {
             listItem.classList.toggle('expanded');
-            // Add CSS for .expanded to show/hide details if desired
         }
         e.stopPropagation();
     });
@@ -52,11 +57,28 @@ function renderOnePost(post) {
     document.querySelector('ul').appendChild(listItem);
 }
 
+function populateEditForm(post, listItem) {
+    const form = document.querySelector('#post-form');
+    const submitButton = form.querySelector('button[type="submit"]');
+    
+    // Populate form with post data
+    document.querySelector('#title').value = post.title;
+    document.querySelector('#content').value = post.content;
+    document.querySelector('#image').value = post.image;
+    document.querySelector('#author').value = post.author;
+
+    // Change form to edit mode
+    submitButton.textContent = 'Update Post';
+    form.dataset.editId = post.id; // Store post ID for update
+    form.dataset.listItem = listItem; // Store listItem for UI update
+    form.style.display = 'block';
+    form.scrollIntoView({ behavior: 'smooth' });
+}
+
 async function deletePost(id, listItem) {
     try {
-        // Simulate DELETE by filtering out the post
         db.posts = db.posts.filter(post => post.id !== id);
-        listItem.remove(); // Update UI
+        listItem.remove();
     } catch (error) {
         alert('Error deleting post: ' + error);
     }
@@ -64,50 +86,87 @@ async function deletePost(id, listItem) {
 
 async function getPosts() {
     try {
-        // Load posts from in-memory db
-        document.querySelector('ul').innerHTML = ''; // Clear existing posts
+        document.querySelector('ul').innerHTML = '';
         db.posts.forEach(post => renderOnePost(post));
     } catch (error) {
         alert('Error fetching posts: ' + error);
     }
 }
 
-async function addPost() {
+async function addPost(event) {
+    const form = event.target;
+    const isEdit = form.dataset.editId;
+    const listItem = form.dataset.listItem ? document.querySelector(`li:nth-child(${form.dataset.listItem})`) : null;
+
     try {
         const postData = {
-            id: db.posts.length ? Math.max(...db.posts.map(p => p.id)) + 1 : 1, // Generate new ID
+            id: isEdit ? parseInt(isEdit) : (db.posts.length ? Math.max(...db.posts.map(p => p.id)) + 1 : 1),
             title: document.querySelector('#title').value,
             content: document.querySelector('#content').value,
             image: document.querySelector('#image').value,
-            author: { name: document.querySelector('#author').value }
+            author: document.querySelector('#author').value
         };
 
-        // Simulate POST by adding to in-memory db
-        db.posts.push(postData);
-        renderOnePost(postData);
-        document.querySelector('#post-form').reset();
+        if (isEdit) {
+            // Update existing post
+            const index = db.posts.findIndex(p => p.id === parseInt(isEdit));
+            if (index !== -1) {
+                db.posts[index] = postData;
+                if (listItem) {
+                    listItem.innerHTML = `
+                        <h1>${postData.title}</h1>
+                        <p>${postData.content}</p>
+                        <p>Author: ${postData.author}</p>
+                        <img src="${postData.image}" alt="${postData.title}" style="max-width: 100%;">
+                        <button class="btn btn-primary p-2 m-2 edit-btn">Edit</button>
+                        <button class="btn btn-danger p-2 m-2 delete-btn">Delete</button>
+                    `;
+                    // Re-attach event listeners
+                    listItem.querySelector('.edit-btn').addEventListener('click', () => populateEditForm(postData, listItem));
+                    listItem.querySelector('.delete-btn').addEventListener('click', () => {
+                        if (confirm('Are you sure you want to delete this post?')) {
+                            deletePost(postData.id, listItem);
+                        }
+                    });
+                }
+            }
+        } else {
+            // Add new post
+            db.posts.push(postData);
+            renderOnePost(postData);
+        }
+
+        // Reset form
+        form.reset();
+        form.style.display = 'none';
+        form.querySelector('button[type="submit"]').textContent = 'Submit';
+        delete form.dataset.editId;
+        delete form.dataset.listItem;
     } catch (error) {
-        alert('Error adding post: ' + error);
+        alert('Error saving post: ' + error);
     }
 }
 
 // Event Listeners
 document.querySelector('#post-form').addEventListener('submit', (event) => {
     event.preventDefault();
-    addPost();
+    addPost(event);
 });
 
 document.getElementById('add-post-btn').addEventListener('click', (event) => {
     event.preventDefault();
-    const postForm = document.querySelector('#post-form');
-    postForm.style.display = postForm.style.display === 'none' ? 'block' : 'none';
-    if (postForm.style.display === 'block') {
-        postForm.scrollIntoView({ behavior: 'smooth' });
+    const form = document.querySelector('#post-form');
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    if (form.style.display === 'block') {
+        form.querySelector('button[type="submit"]').textContent = 'Submit';
+        form.reset();
+        delete form.dataset.editId;
+        form.scrollIntoView({ behavior: 'smooth' });
     }
 });
 
 // Initialize
 (async () => {
-    await loadDb(); // Try to load db.json
-    await getPosts(); // Render initial posts
+    await loadDb();
+    await getPosts();
 })();
